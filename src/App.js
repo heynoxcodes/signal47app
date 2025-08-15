@@ -233,9 +233,9 @@ const FrequencyView = ({ onSecretFound }) => {
 const MemoryGameView = ({ onSecretFound }) => {
   const [pattern, setPattern] = useState([]);
   const [userInput, setUserInput] = useState([]);
-  const [showPattern, setShowPattern] = useState(false);
-  const [gameActive, setGameActive] = useState(false);
   const [round, setRound] = useState(1);
+  const [activeIndex, setActiveIndex] = useState(-1); // currently highlighted cell
+  const [gameActive, setGameActive] = useState(false);
 
   const maxRounds = 3;
   const gridSize = 9;
@@ -254,22 +254,22 @@ const MemoryGameView = ({ onSecretFound }) => {
     }
     setPattern(newPattern);
     setUserInput([]);
-    setShowPattern(false);
+    setActiveIndex(-1);
     setGameActive(false);
 
-    // show pattern after 1s
+    // Sequentially show pattern
+    newPattern.forEach((cell, i) => {
+      timeouts.current.push(
+        setTimeout(() => setActiveIndex(cell), 1000 + i * 700)
+      );
+    });
+
+    // End of pattern display
     timeouts.current.push(
       setTimeout(() => {
-        setShowPattern(true);
-
-        // hide pattern after 2s + round*500ms
-        timeouts.current.push(
-          setTimeout(() => {
-            setShowPattern(false);
-            setGameActive(true);
-          }, 2000 + round * 500)
-        );
-      }, 1000)
+        setActiveIndex(-1);
+        setGameActive(true);
+      }, 1000 + newPattern.length * 700)
     );
   };
 
@@ -285,25 +285,21 @@ const MemoryGameView = ({ onSecretFound }) => {
     const newInput = [...userInput, index];
     setUserInput(newInput);
 
-    // wrong click
     if (newInput[newInput.length - 1] !== pattern[newInput.length - 1]) {
       setGameActive(false);
       timeouts.current.push(
-        setTimeout(() => {
-          generateNewPattern();
-        }, 500)
+        setTimeout(() => generateNewPattern(), 800)
       );
       return;
     }
 
-    // correct sequence completed
     if (newInput.length === pattern.length) {
+      setGameActive(false);
       if (round >= maxRounds) {
-        onSecretFound("binary");
+        timeouts.current.push(setTimeout(() => onSecretFound("binary"), 500));
       } else {
-        setGameActive(false);
         timeouts.current.push(
-          setTimeout(() => setRound((prev) => prev + 1), 1000)
+          setTimeout(() => setRound((prev) => prev + 1), 800)
         );
       }
     }
@@ -317,11 +313,9 @@ const MemoryGameView = ({ onSecretFound }) => {
           Round {round}/{maxRounds}
         </p>
         <p className="text-xs mt-4 opacity-60">
-          {!gameActive && !showPattern
-            ? "Watch the pattern..."
-            : showPattern
-            ? "Memorize the sequence"
-            : "Click the cells in order"}
+          {!gameActive && activeIndex === -1 ? "Watch the pattern..." : 
+           activeIndex !== -1 ? "Memorize the sequence" : 
+           "Click the cells in order"}
         </p>
       </div>
 
@@ -329,8 +323,7 @@ const MemoryGameView = ({ onSecretFound }) => {
         {Array(gridSize)
           .fill(0)
           .map((_, index) => {
-            const patternIndex = pattern.indexOf(index);
-            const shouldGlow = showPattern && patternIndex !== -1;
+            const isActive = activeIndex === index;
             const userClicked = userInput.includes(index);
 
             return (
@@ -338,20 +331,19 @@ const MemoryGameView = ({ onSecretFound }) => {
                 key={index}
                 onClick={() => handleCellClick(index)}
                 className={`w-20 h-20 border-2 transition-all duration-300 ${
-                  shouldGlow
+                  isActive
                     ? "bg-blue-500 border-blue-400"
                     : userClicked
                     ? "bg-green-500 border-green-400"
                     : "border-gray-600 hover:border-gray-400"
                 }`}
-                animate={shouldGlow ? { scale: [1, 1.1, 1] } : {}}
-                transition={{
-                  duration: 0.5,
-                  delay: patternIndex !== -1 ? patternIndex * 0.3 : 0,
-                }}
+                animate={isActive ? { scale: [1, 1.2, 1] } : {}}
+                transition={{ duration: 0.5 }}
               >
-                {showPattern && patternIndex !== -1 && (
-                  <span className="text-white font-bold">{patternIndex + 1}</span>
+                {isActive && (
+                  <span className="text-white font-bold">
+                    {pattern.indexOf(index) + 1}
+                  </span>
                 )}
               </motion.button>
             );

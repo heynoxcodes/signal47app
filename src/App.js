@@ -236,53 +236,75 @@ const MemoryGameView = ({ onSecretFound }) => {
   const [showPattern, setShowPattern] = useState(false);
   const [gameActive, setGameActive] = useState(false);
   const [round, setRound] = useState(1);
-  
+
   const maxRounds = 3;
   const gridSize = 9;
+  const timeouts = useRef([]);
 
-  useEffect(() => {
-    generateNewPattern();
-  }, [round]);
+  const clearAllTimeouts = () => {
+    timeouts.current.forEach(clearTimeout);
+    timeouts.current = [];
+  };
 
   const generateNewPattern = () => {
+    clearAllTimeouts();
     const newPattern = [];
     for (let i = 0; i < round + 2; i++) {
       newPattern.push(Math.floor(Math.random() * gridSize));
     }
     setPattern(newPattern);
     setUserInput([]);
-    
-    setTimeout(() => {
-      setShowPattern(true);
+    setShowPattern(false);
+    setGameActive(false);
+
+    // show pattern after 1s
+    timeouts.current.push(
       setTimeout(() => {
-        setShowPattern(false);
-        setGameActive(true);
-      }, 2000 + round * 500);
-    }, 1000);
+        setShowPattern(true);
+
+        // hide pattern after 2s + round*500ms
+        timeouts.current.push(
+          setTimeout(() => {
+            setShowPattern(false);
+            setGameActive(true);
+          }, 2000 + round * 500)
+        );
+      }, 1000)
+    );
   };
+
+  useEffect(() => {
+    generateNewPattern();
+    return () => clearAllTimeouts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
 
   const handleCellClick = (index) => {
     if (!gameActive) return;
-    
+
     const newInput = [...userInput, index];
     setUserInput(newInput);
 
+    // wrong click
     if (newInput[newInput.length - 1] !== pattern[newInput.length - 1]) {
-      setTimeout(() => {
-        setGameActive(false);
-        generateNewPattern();
-      }, 500);
+      setGameActive(false);
+      timeouts.current.push(
+        setTimeout(() => {
+          generateNewPattern();
+        }, 500)
+      );
       return;
     }
 
+    // correct sequence completed
     if (newInput.length === pattern.length) {
       if (round >= maxRounds) {
-        onSecretFound('binary');
+        onSecretFound("binary");
       } else {
-        setTimeout(() => {
-          setRound(prev => prev + 1);
-          setGameActive(false);
-        }, 1000);
+        setGameActive(false);
+        timeouts.current.push(
+          setTimeout(() => setRound((prev) => prev + 1), 1000)
+        );
       }
     }
   };
@@ -291,43 +313,49 @@ const MemoryGameView = ({ onSecretFound }) => {
     <div className="w-full max-w-md p-4 text-center">
       <div className="text-white text-lg mb-6 font-mono">
         <p className="mb-2">MEMORY PROTOCOL ACTIVATED</p>
-        <p className="text-sm opacity-70">Round {round}/{maxRounds}</p>
+        <p className="text-sm opacity-70">
+          Round {round}/{maxRounds}
+        </p>
         <p className="text-xs mt-4 opacity-60">
-          {!gameActive && !showPattern ? "Watch the pattern..." : 
-           showPattern ? "Memorize the sequence" : 
-           "Click the cells in order"}
+          {!gameActive && !showPattern
+            ? "Watch the pattern..."
+            : showPattern
+            ? "Memorize the sequence"
+            : "Click the cells in order"}
         </p>
       </div>
 
       <div className="grid grid-cols-3 gap-2 max-w-xs mx-auto">
-        {Array(gridSize).fill(0).map((_, index) => {
-          const isInPattern = pattern.includes(index);
-          const patternIndex = pattern.indexOf(index);
-          const shouldGlow = showPattern && isInPattern;
-          const userClicked = userInput.includes(index);
-          
-          return (
-            <motion.button
-              key={index}
-              onClick={() => handleCellClick(index)}
-              className={`w-20 h-20 border-2 transition-all duration-300 ${
-                shouldGlow 
-                  ? 'bg-blue-500 border-blue-400' 
-                  : userClicked 
-                  ? 'bg-green-500 border-green-400'
-                  : 'border-gray-600 hover:border-gray-400'
-              }`}
-              animate={shouldGlow ? { scale: [1, 1.1, 1] } : {}}
-              transition={{ duration: 0.5, delay: patternIndex * 0.3 }}
-            >
-              {showPattern && isInPattern && (
-                <span className="text-white font-bold">
-                  {patternIndex + 1}
-                </span>
-              )}
-            </motion.button>
-          );
-        })}
+        {Array(gridSize)
+          .fill(0)
+          .map((_, index) => {
+            const patternIndex = pattern.indexOf(index);
+            const shouldGlow = showPattern && patternIndex !== -1;
+            const userClicked = userInput.includes(index);
+
+            return (
+              <motion.button
+                key={index}
+                onClick={() => handleCellClick(index)}
+                className={`w-20 h-20 border-2 transition-all duration-300 ${
+                  shouldGlow
+                    ? "bg-blue-500 border-blue-400"
+                    : userClicked
+                    ? "bg-green-500 border-green-400"
+                    : "border-gray-600 hover:border-gray-400"
+                }`}
+                animate={shouldGlow ? { scale: [1, 1.1, 1] } : {}}
+                transition={{
+                  duration: 0.5,
+                  delay: patternIndex !== -1 ? patternIndex * 0.3 : 0,
+                }}
+              >
+                {showPattern && patternIndex !== -1 && (
+                  <span className="text-white font-bold">{patternIndex + 1}</span>
+                )}
+              </motion.button>
+            );
+          })}
       </div>
     </div>
   );
@@ -410,7 +438,7 @@ const MathPuzzleView = ({ onSecretFound }) => {
   const [showHint, setShowHint] = useState(false);
   
   // Drake Equation simplified result
-  const correctAnswer = '10000';
+  const correctAnswer = '1000';
   
   useEffect(() => {
     setTimeout(() => setShowHint(true), 8000);
